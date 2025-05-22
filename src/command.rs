@@ -1,5 +1,9 @@
 #[allow(unused)]
 mod commands {
+    pub const POWER_SETTING: u8 = 0x01;
+    pub const POWER_ON: u8 = 0x04;
+    pub const BOOSTER_SOFT_START: u8 = 0x06;
+    pub const VCOM_AND_DATA_INTERVAL_SETTING: u8 = 0x50;
     pub const DRIVER_CONTROL: u8 = 0x01;
     pub const SET_SOFTSTART: u8 = 0x0C;
     pub const DEEP_SLEEP: u8 = 0x10;
