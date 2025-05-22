@@ -99,25 +99,33 @@ where
         self.command(command::SW_RESET).await?;
         self.delay.delay_ms(10).await;
         self.wait_until_idle().await;
+
+        // 🆕 Power settings (if supported by the panel)
+        self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09]).await?; // Example values
+        self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17]).await?; // Optional
+        self.command(command::POWER_ON).await?;
+        self.wait_until_idle().await;
+
+        // 🆕 VCOM setup
+        self.command_with_data(command::VCOM_AND_DATA_INTERVAL_SETTING, &[0x97]).await?; // Default waveform timing
+
+        // Display settings
         self.command_with_data(
             command::DRIVER_CONTROL,
             &[(HEIGHT - 1) as u8, ((HEIGHT - 1) >> 8) as u8, 0x00],
-        )
-        .await?;
-        self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX])
-            .await?;
+        ).await?;
+        self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX]).await?;
         self.command_with_data(
             command::BORDER_WAVEFORM_CONTROL,
             &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
-        )
-        .await?;
-        self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
-            .await?;
-        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
-            .await?;
+        ).await?;
+        self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80]).await?;
+        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR]).await?;
+
         self.use_full_frame().await?;
         self.wait_until_idle().await;
         Ok(())
+
     }
 
     /// Perform a hardware reset of the display.
