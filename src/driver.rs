@@ -100,18 +100,22 @@ where
         self.delay.delay_ms(10).await;
         self.wait_until_idle().await;
 
-        // 🆕 Power settings (if supported by the panel)
-        self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09]).await?; // Example values
-        self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17]).await?; // Optional
+        // // 🆕 Power settings (if supported by the panel)
+        // self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09]).await?; // Example values
+        // self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17]).await?; // Optional
         self.command(command::POWER_ON).await?;
-        self.delay.delay_ms(100).await;
-
         self.wait_until_idle().await;
-        self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE).await?;
+
+        // // self.delay.delay_ms(100).await; // step3
+
+        // // self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE).await?; // step4
 
 
-        // 🆕 VCOM setup
-        self.command_with_data(command::VCOM_AND_DATA_INTERVAL_SETTING, &[0x97]).await?; // Default waveform timing
+        // // // 🆕 VCOM setup
+        self.command_with_data(command::VCOM_AND_DATA_INTERVAL_SETTING, &[0x97]).await?; // Default waveform timing 
+
+        // self.command_with_data(command::WRITE_VCOM_REGISTER, &[0x44]).await?; // step 2
+
 
         // Display settings
         self.command_with_data(
