@@ -104,6 +104,8 @@ where
         // self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09]).await?; // Example values
         // self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17]).await?; // Optional
         self.command(command::POWER_ON).await?;
+        self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE).await?;
+
         self.wait_until_idle().await;
 
         // // self.delay.delay_ms(100).await; // step3
