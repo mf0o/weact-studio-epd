@@ -95,47 +95,53 @@ where
 
     /// Initialize the display
     pub async fn init(&mut self) -> Result<()> {
+        // Full hardware reset
         self.hw_reset().await;
         self.command(command::SW_RESET).await?;
         self.delay.delay_ms(10).await;
+
         self.wait_until_idle().await;
 
-        // // 🆕 Power settings (if supported by the panel)
-        // self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09]).await?; // Example values
-        // self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17]).await?; // Optional
+        // Optional: Power setup — known to work on most IL3820/SSD1680 panels
+        self.command_with_data(command::POWER_SETTING, &[0x03, 0x00, 0x2B, 0x2B, 0x09])
+            .await?;
+        self.command_with_data(command::BOOSTER_SOFT_START, &[0x17, 0x17, 0x17])
+            .await?;
         self.command(command::POWER_ON).await?;
-        self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE).await?;
-
         self.wait_until_idle().await;
 
-        // // self.delay.delay_ms(100).await; // step3
+        // Optional: Load known-good full refresh LUT (153 bytes)
+        // Requires: lut::LUT_FULL_UPDATE defined in lut.rs
+        self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE)
+            .await?;
 
-        // // self.command_with_data(command::WRITE_LUT, &lut::LUT_FULL_UPDATE).await?; // step4
-
-
-        // // // 🆕 VCOM setup
-        self.command_with_data(command::VCOM_AND_DATA_INTERVAL_SETTING, &[0x97]).await?; // Default waveform timing 
-
-        // self.command_with_data(command::WRITE_VCOM_REGISTER, &[0x44]).await?; // step 2
-
-
-        // Display settings
+        // Display mode and RAM config
         self.command_with_data(
             command::DRIVER_CONTROL,
             &[(HEIGHT - 1) as u8, ((HEIGHT - 1) >> 8) as u8, 0x00],
-        ).await?;
-        self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX]).await?;
+        )
+        .await?;
+        self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX])
+            .await?;
         self.command_with_data(
             command::BORDER_WAVEFORM_CONTROL,
             &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
-        ).await?;
-        self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80]).await?;
-        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR]).await?;
+        )
+        .await?;
+        self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
+            .await?;
+        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
+            .await?;
 
+        // Ensure addressing is set for full frame updates
         self.use_full_frame().await?;
         self.wait_until_idle().await;
-        Ok(())
 
+        // Initial display clear to avoid ghosting
+        self.clear_bw_buffer().await?;
+        self.full_refresh().await?;
+
+        Ok(())
     }
 
     /// Perform a hardware reset of the display.
