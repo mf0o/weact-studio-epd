@@ -3,7 +3,7 @@ use core::iter;
 #[cfg(not(feature = "blocking"))]
 use display_interface::AsyncWriteOnlyDataCommand;
 #[cfg(feature = "blocking")]
-use display_interface::WriteOnlyDataCommand;
+use display_interface::WriteOnlyDatacommand;
 
 #[cfg(feature = "blocking")]
 use embedded_hal::delay::DelayNs;
@@ -61,7 +61,7 @@ pub struct DisplayDriver<
         feature = "blocking",
         keep_self,
         idents(
-            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDataCommand"),
+            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDatacommand"),
             Wait(sync = "InputPin")
         )
     ),
@@ -93,12 +93,95 @@ where
         }
     }
 
-    /// Initialize the display
+    // /// Initialize the display
     pub async fn init(&mut self) -> Result<()> {
+         self.hw_reset().await;
+    // self.command(command::SW_RESET).await?;
+
+
+
+self.delay.delay_ms(50).await;
+// self.wait_until_idle().await;
+
+    // self.command(command::DRIVER_CONTROL).await?;
+    // self.data(&[0x27, 0x01, 0x01]).await?;
+        self.command_with_data(
+            command::DRIVER_CONTROL,
+            &[(HEIGHT - 1) as u8, ((HEIGHT - 1) >> 8) as u8, 0x00],
+        )
+        .await?;
+
+    self.command(command::BORDER_WAVEFORM_CONTROL).await?;
+    self.data(&[0x80]).await?;
+
+    self.command(command::DISPLAY_UPDATE_CONTROL_1).await?;
+    self.data(&[0x00, 0x80]).await?;
+
+    self.command(command::TEMPERATURE_SENSOR_CONTROL).await?;
+    self.data(&[0x80]).await?;
+
+    self.command(command::VCM_DC_SETTING).await?;
+    self.data(&[0x08]).await?;
+
+    self.command(command::GATE_DRIVING_VOLTAGE).await?;
+    self.data(&[0x03]).await?;
+
+    self.command(command::SOURCE_DRIVING_VOLTAGE).await?;
+    self.data(&[0x28, 0x28, 0x1E]).await?;
+
+    self.command(command::BOOSTER_SOFT_START).await?;
+    self.data(&[0xF5, 0xF5, 0xF5, 0x00]).await?;
+
+    self.command(command::DATA_ENTRY_MODE).await?;
+    self.data(&[0x03]).await?;
+        // self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX])
+        //     .await?;
+
+// whats this?
+    // self.command(command::DISPLAY_UPDATE_CONTROL_2).await?;
+    // self.data(&[0x03]).await?;
+
+// attempt to unflip the image
+// Set RAM X address range (0x44)
+// Assume width is 128 pixels → 16 bytes
+self.command(command::SET_RAM_X_ADDRESS).await?;
+self.data(&[0x00, 0x0F]).await?;  // 0 to 15 (128px / 8 bits-per-byte)
+
+// Set RAM Y address range (0x45)
+self.command(command::SET_RAM_Y_ADDRESS).await?;
+self.data(&[0x00, 0x00, 0x27, 0x01]).await?;  // 0 to 295 (250 in hex is 0x27 0x01)
+
+// Set RAM X counter (0x4E)
+self.command(command::SET_RAM_X_COUNTER).await?;
+self.data(&[0x00]).await?;
+
+// Set RAM Y counter (0x4F)
+self.command(command::SET_RAM_Y_COUNTER).await?;
+self.data(&[0x00, 0x00]).await?;
+// end of unflip
+
+
+//testme
+self.command(command::PANEL_SETTING).await?;
+self.data(&[0xC7]).await?;
+
+self.delay.delay_ms(500).await;    
+
+    // // Later: Set LUT
+    // self.command(command::WRITE_LUT).await?;
+    // self.data(&lut::LUT_CUSTOM).await?;
+
+    Ok(())
+
+    }
+
+    pub async fn initold(&mut self) -> Result<()> {
         self.hw_reset().await;
         self.command(command::SW_RESET).await?;
         self.delay.delay_ms(10).await;
+
         self.wait_until_idle().await;
+
         self.command_with_data(
             command::DRIVER_CONTROL,
             &[(HEIGHT - 1) as u8, ((HEIGHT - 1) >> 8) as u8, 0x00],
@@ -111,10 +194,13 @@ where
             &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
         )
         .await?;
+
         self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
             .await?;
+        
         self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
             .await?;
+        
         self.use_full_frame().await?;
         self.wait_until_idle().await;
         Ok(())
@@ -345,7 +431,7 @@ where
         feature = "blocking",
         keep_self,
         idents(
-            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDataCommand"),
+            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDatacommand"),
             Wait(sync = "InputPin")
         )
     ),
@@ -463,7 +549,7 @@ where
         feature = "blocking",
         keep_self,
         idents(
-            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDataCommand"),
+            AsyncWriteOnlyDataCommand(sync = "WriteOnlyDatacommand"),
             Wait(sync = "InputPin")
         )
     ),
