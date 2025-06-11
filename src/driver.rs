@@ -167,9 +167,11 @@ self.data(&[0xC7]).await?;
 
 self.delay.delay_ms(500).await;    
 
-    // // Later: Set LUT
-    // self.command(command::WRITE_LUT).await?;
-    // self.data(&lut::LUT_CUSTOM).await?;
+    // // // Later: Set LUT
+    self.command(command::WRITE_LUT).await?;
+    self.data(&lut::LUT_PARTIAL_UPDATE_CMO).await?; 
+
+    // ## new init but old LUT
 
     Ok(())
 
@@ -456,7 +458,7 @@ where
         }
 
         if !self.using_partial_mode {
-            self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE)
+            self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE_CMO)
                 .await?;
             self.using_partial_mode = true;
         }
