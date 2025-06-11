@@ -181,7 +181,6 @@ self.delay.delay_ms(500).await;
         self.hw_reset().await;
         self.command(command::SW_RESET).await?;
         self.delay.delay_ms(10).await;
-
         self.wait_until_idle().await;
 
         self.command_with_data(
@@ -300,6 +299,10 @@ self.delay.delay_ms(500).await;
     pub async fn full_refresh(&mut self) -> Result<()> {
         self.initial_full_refresh_done = true;
         self.using_partial_mode = false;
+
+        self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE_CMO).await?;
+        self.delay.delay_ms(10).await;
+        self.wait_until_idle().await;
 
         self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::DISPLAY_MODE_1])
             .await?;
@@ -458,7 +461,7 @@ where
         }
 
         if !self.using_partial_mode {
-            self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE_CMO)
+            self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE_FMO)
                 .await?;
             self.using_partial_mode = true;
         }
