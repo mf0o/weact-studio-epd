@@ -20,6 +20,15 @@ use crate::{
     command, flag, lut, Color, Result, TriColor,
 };
 
+/// The LUT to use for partial refreshes.
+#[derive(Clone, Copy)]
+pub enum RefreshLut {
+    /// The original LUT, for older displays.
+    Legacy,
+    /// The optimized LUT, for newer displays.
+    Optimized,
+}
+
 /// Display driver for the WeAct Studio 2.9 inch B/W display.
 pub type WeActStudio290BlackWhiteDriver<DI, BSY, RST, DELAY> =
     DisplayDriver<DI, BSY, RST, DELAY, 128, 128, 296, Color>;
@@ -54,6 +63,7 @@ pub struct DisplayDriver<
     // State
     using_partial_mode: bool,
     initial_full_refresh_done: bool,
+    refresh_lut: RefreshLut,
 }
 
 #[maybe_async_cfg::maybe(
@@ -90,6 +100,7 @@ where
             delay,
             using_partial_mode: false,
             initial_full_refresh_done: false,
+            refresh_lut: RefreshLut::Legacy,
         }
     }
 
@@ -359,6 +370,13 @@ where
     RST: OutputPin,
     DELAY: DelayNs,
 {
+    /// Set the LUT to use for partial refreshes.
+    pub async fn set_refresh_lut(&mut self, lut: &RefreshLut) -> Result<()> {
+        self.refresh_lut = *lut;
+        self.using_partial_mode = false;
+        Ok(())
+    }
+
     /// Start a fast refresh of the display using the current in-screen buffers.
     ///
     /// If the display hasn't done a [`Self::full_refresh`] yet, it will do that first.
@@ -370,8 +388,11 @@ where
         }
 
         if !self.using_partial_mode {
-            self.command_with_data(command::WRITE_LUT, &lut::LUT_PARTIAL_UPDATE)
-                .await?;
+            let lut = match self.refresh_lut {
+                RefreshLut::Legacy => &lut::LUT_PARTIAL_UPDATE_LEGACY,
+                RefreshLut::Optimized => &lut::LUT_PARTIAL_UPDATE_OPTIMIZED,
+            };
+            self.command_with_data(command::WRITE_LUT, lut).await?;
             self.using_partial_mode = true;
         }
         self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::UNDOCUMENTED])
