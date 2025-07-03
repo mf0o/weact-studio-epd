@@ -27,6 +27,8 @@ pub enum RefreshLut {
     Legacy,
     /// The optimized LUT, for newer displays.
     Optimized,
+    /// Tuned LUT for the newer displays if Optimized doesnt do the job
+    Tuned,
 }
 
 /// Display driver for the WeAct Studio 2.9 inch B/W display.
@@ -391,8 +393,10 @@ where
             let lut = match self.refresh_lut {
                 RefreshLut::Legacy => &lut::LUT_PARTIAL_UPDATE_LEGACY,
                 RefreshLut::Optimized => &lut::LUT_PARTIAL_UPDATE_OPTIMIZED,
+                RefreshLut::Tuned => &lut::LUT_PARTIAL_UPDATE_TUNED,
             };
             self.command_with_data(command::WRITE_LUT, lut).await?;
+            self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80]).await?;
             self.using_partial_mode = true;
         }
         self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::UNDOCUMENTED])
