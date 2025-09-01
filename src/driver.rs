@@ -408,8 +408,10 @@ where
                 RefreshLut::Tuned => &lut::LUT_PARTIAL_UPDATE_TUNED,
                 RefreshLut::LegacyCold => &lut::LUT_LEGACY_COLD,
                 RefreshLut::LegacyHot => &lut::LUT_LEGACY_HOT,
+                RefreshLut::LegacyVeryHot => &lut::LUT_LEGACY_VERY_HOT,
                 RefreshLut::OptimizedCold => &lut::LUT_OPTIMIZED_COLD,
                 RefreshLut::OptimizedHot => &lut::LUT_OPTIMIZED_HOT,
+                RefreshLut::OptimizedVeryHot => &lut::LUT_OPTIMIZED_VERY_HOT,
             };
             self.command_with_data(command::WRITE_LUT, lut).await?;
             self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80]).await?;
