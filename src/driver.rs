@@ -29,6 +29,18 @@ pub enum RefreshLut {
     Optimized,
     /// Tuned LUT for the newer displays if Optimized doesnt do the job
     Tuned,
+    /// Legacy LUT optimized for cold temperatures (<20°C)
+    LegacyCold,
+    /// Legacy LUT optimized for hot temperatures (25-30°C)
+    LegacyHot,
+    /// Legacy LUT optimized for very hot temperatures (>30°C)
+    LegacyVeryHot,
+    /// Optimized LUT adapted for cold temperatures (<20°C)
+    OptimizedCold,
+    /// Optimized LUT adapted for hot temperatures (25-30°C)
+    OptimizedHot,
+    /// Optimized LUT adapted for very hot temperatures (>30°C)
+    OptimizedVeryHot,
 }
 
 /// Display driver for the WeAct Studio 2.9 inch B/W display.
@@ -394,6 +406,10 @@ where
                 RefreshLut::Legacy => &lut::LUT_PARTIAL_UPDATE_LEGACY,
                 RefreshLut::Optimized => &lut::LUT_PARTIAL_UPDATE_OPTIMIZED,
                 RefreshLut::Tuned => &lut::LUT_PARTIAL_UPDATE_TUNED,
+                RefreshLut::LegacyCold => &lut::LUT_LEGACY_COLD,
+                RefreshLut::LegacyHot => &lut::LUT_LEGACY_HOT,
+                RefreshLut::OptimizedCold => &lut::LUT_OPTIMIZED_COLD,
+                RefreshLut::OptimizedHot => &lut::LUT_OPTIMIZED_HOT,
             };
             self.command_with_data(command::WRITE_LUT, lut).await?;
             self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80]).await?;
