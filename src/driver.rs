@@ -118,30 +118,53 @@ where
         }
     }
 
-    /// Initialize the display
+    /// Initialize the display (mostly original approach)
     pub async fn init(&mut self) -> Result<()> {
         self.hw_reset().await;
         self.command(command::SW_RESET).await?;
         self.delay.delay_ms(10).await;
         self.wait_until_idle().await;
+        
+        // Original driver control
         self.command_with_data(
             command::DRIVER_CONTROL,
             &[(HEIGHT - 1) as u8, ((HEIGHT - 1) >> 8) as u8, 0x00],
         )
         .await?;
+        
+        // Original data entry mode
         self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX])
             .await?;
+            
+        // Original border setting
         self.command_with_data(
             command::BORDER_WAVEFORM_CONTROL,
             &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
         )
         .await?;
+        
+        // Original display update control (this might have been the issue)
         self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
             .await?;
-        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
-            .await?;
+            
+        // Set up full frame (this handles RAM positioning)
         self.use_full_frame().await?;
         self.wait_until_idle().await;
+        Ok(())
+    }
+
+    /// Initialize for partial updates (vendor approach)
+    pub async fn init_partial(&mut self) -> Result<()> {
+        self.delay.delay_ms(10).await;
+        self.hw_reset().await;
+        self.delay.delay_ms(10).await;
+        self.wait_until_idle().await;
+        
+        // Note: Vendor skips soft reset (0x12) for partial updates
+        // Border floating mode for partial updates
+        self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80])
+            .await?;
+            
         Ok(())
     }
 
@@ -238,6 +261,7 @@ where
         self.initial_full_refresh_done = true;
         self.using_partial_mode = false;
 
+        // Revert to original working command
         self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::DISPLAY_MODE_1])
             .await?;
         self.command(command::MASTER_ACTIVATE).await?;
@@ -396,28 +420,18 @@ where
     /// If the display hasn't done a [`Self::full_refresh`] yet, it will do that first.
     pub async fn fast_refresh(&mut self) -> Result<()> {
         if !self.initial_full_refresh_done {
-            // There a bug here which causes the new image to overwrite the existing image which then
-            // fades out over several updates.
             self.full_refresh().await?;
         }
 
         if !self.using_partial_mode {
-            let lut = match self.refresh_lut {
-                RefreshLut::Legacy => &lut::LUT_PARTIAL_UPDATE_LEGACY,
-                RefreshLut::Optimized => &lut::LUT_PARTIAL_UPDATE_OPTIMIZED,
-                RefreshLut::Tuned => &lut::LUT_PARTIAL_UPDATE_TUNED,
-                RefreshLut::LegacyCold => &lut::LUT_LEGACY_COLD,
-                RefreshLut::LegacyHot => &lut::LUT_LEGACY_HOT,
-                RefreshLut::LegacyVeryHot => &lut::LUT_LEGACY_VERY_HOT,
-                RefreshLut::OptimizedCold => &lut::LUT_OPTIMIZED_COLD,
-                RefreshLut::OptimizedHot => &lut::LUT_OPTIMIZED_HOT,
-                RefreshLut::OptimizedVeryHot => &lut::LUT_OPTIMIZED_VERY_HOT,
-            };
-            self.command_with_data(command::WRITE_LUT, lut).await?;
+            // Revert to original LUT-based approach but without loading custom LUTs
+            // Just set border floating mode
             self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80]).await?;
             self.using_partial_mode = true;
         }
-        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::UNDOCUMENTED])
+        
+        // Revert to original working command 
+        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::DISPLAY_MODE_2])
             .await?;
         self.command(command::MASTER_ACTIVATE).await?;
         self.wait_until_idle().await;
@@ -426,20 +440,18 @@ where
 
     /// Update the screen with the provided full frame buffer using a full refresh.
     pub async fn full_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
-        self.write_red_buffer(buffer).await?;
-        self.write_bw_buffer(buffer).await?;
+        // Vendor approach: write same data to both DTM1 (BW) and DTM2 (RED) for full updates
+        self.write_bw_buffer(buffer).await?;   // DTM1 (0x24)
+        self.write_red_buffer(buffer).await?;  // DTM2 (0x26) - same data
         self.full_refresh().await?;
-        self.write_red_buffer(buffer).await?;
-        self.write_bw_buffer(buffer).await?;
         Ok(())
     }
 
     /// Update the screen with the provided full frame buffer using a fast refresh.
     pub async fn fast_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
-        self.write_bw_buffer(buffer).await?;
+        // Vendor approach: write only to DTM1 (BW) for partial updates, skip DTM2 (RED)
+        self.write_bw_buffer(buffer).await?;   // DTM1 (0x24) only
         self.fast_refresh().await?;
-        self.write_red_buffer(buffer).await?;
-        self.write_bw_buffer(buffer).await?;
         Ok(())
     }
 
