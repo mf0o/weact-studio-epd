@@ -208,17 +208,14 @@ where
         Ok(())
     }
 
-    /// Start a full refresh using AramVartanyan's true LUT-free approach.
+    /// Start a full refresh using the panel's built-in OTP LUT (Display Mode 1 / 0xF7).
     pub async fn full_refresh(&mut self) -> Result<()> {
         self.initial_full_refresh_done = true;
         self.using_partial_mode = false;
 
-        // Set border waveform for full update (0x05 like AramVartanyan)
         self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x05])
             .await?;
-
-        // AramVartanyan approach: 0xF7 for full update (uses built-in controller LUTs)
-        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[0xF7])
+        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::DISPLAY_MODE_1])
             .await?;
         self.command(command::MASTER_ACTIVATE).await?;
         self.wait_until_idle().await;
@@ -364,7 +361,7 @@ where
     RST: OutputPin,
     DELAY: DelayNs,
 {
-    /// Start a fast refresh using AramVartanyan's true LUT-free approach.
+    /// Start a fast refresh using the panel's built-in partial waveform (Display Mode 2 / 0xFF).
     ///
     /// If the display hasn't done a [`Self::full_refresh`] yet, it will do that first.
     pub async fn fast_refresh(&mut self) -> Result<()> {
@@ -374,39 +371,44 @@ where
 
         self.using_partial_mode = true;
 
-        // AramVartanyan approach: 0xFF for partial update (uses built-in controller LUTs)
-        // NO custom LUT loading needed - relies entirely on built-in controller intelligence
-        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[0xFF])
+        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[flag::DISPLAY_MODE_2])
             .await?;
         self.command(command::MASTER_ACTIVATE).await?;
         self.wait_until_idle().await;
         Ok(())
     }
 
-    /// Update the screen with the provided full frame buffer using AramVartanyan's approach.
-    /// Writes to both DTM1 and DTM2 to establish reference state for partial updates.
+    /// Update the screen with the provided full frame buffer using a full refresh.
+    ///
+    /// Calls `init()` first to ensure the display is awake and in a known state , this
+    /// handles the case where a previous `fast_update_from_buffer` left it in deep sleep.
+    /// Writes the same data to both DTM1 (0x24) and DTM2 (0x26) to establish a clean
+    /// reference state for subsequent partial updates.
     pub async fn full_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
-        // AramVartanyan strategy: write to both RAM1 (0x24) and RAM2 (0x26) for full update
-        self.write_bw_buffer(buffer).await?;  // Write to DTM1 (0x24)
-        self.write_red_buffer(buffer).await?; // Write to DTM2 (0x26) - same data
+        self.init().await?;
+        self.write_bw_buffer(buffer).await?;
+        self.write_red_buffer(buffer).await?;
         self.full_refresh().await?;
         Ok(())
     }
 
-    /// Update the screen with the provided full frame buffer using AramVartanyan's partial approach.
-    /// Uses partial counter to force periodic full refreshes and prevent fading.
+    /// Update the screen with the provided full frame buffer using a fast refresh.
+    ///
+    /// Sequence: hw_reset (wakes from deep sleep, registers/RAM preserved in mode 1) >
+    /// wait busy > set border waveform > write DTM1 > trigger 0xFF > update DTM2 > deep sleep.
+    ///
+    /// DTM2 is updated after each refresh so it always reflects the currently displayed frame.
+    /// With 0xFF differential mode the controller only drives pixels that differ between DTM1
+    /// and DTM2 , if DTM2 drifts behind, unchanged pixels accumulate residual charge > ghosting.
     pub async fn fast_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
-        // AramVartanyan's counter system: force full refresh every 5 partial updates
-        // Partial update: hardware reset + border control + write only to DTM1
         self.hw_reset().await;
-
-        // Set border waveform for partial update (0x80 like AramVartanyan)
+        self.wait_until_idle().await;
         self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80])
             .await?;
-
-        // Write ONLY to RAM1 (0x24) for partial update
         self.write_bw_buffer(buffer).await?;
         self.fast_refresh().await?;
+        self.write_red_buffer(buffer).await?;
+        self.sleep().await?;
         Ok(())
     }
 
