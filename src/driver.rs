@@ -118,12 +118,13 @@ self.command_with_data(
 .await?;        
         self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
             .await?;
-        // self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
-        //     .await?;
-// self.command_with_data(command::TEMP_CONTROL, &[0x80])
-//     .await?;
+        // Use internal temperature sensor so the OTP waveform (0xF7) is properly
+        // temperature-compensated. POR = 0x48 (external sensor); without this the
+        // PCB's floating TEMP pin produces an undefined reading → softer clearing.
+        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
+            .await?;
 
-// self.load_temperature_profile().await?;
+        // self.load_temperature_profile().await?;
 
         self.use_full_frame().await?;
         self.wait_until_idle().await;
