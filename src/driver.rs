@@ -106,15 +106,25 @@ where
         .await?;
         self.command_with_data(command::DATA_ENTRY_MODE, &[flag::DATA_ENTRY_INCRY_INCRX])
             .await?;
-        self.command_with_data(
-            command::BORDER_WAVEFORM_CONTROL,
-            &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
-        )
-        .await?;
+        // self.command_with_data(
+        //     command::BORDER_WAVEFORM_CONTROL,
+        //     &[flag::BORDER_WAVEFORM_FOLLOW_LUT | flag::BORDER_WAVEFORM_LUT1],
+        // )
+        // .await?;
+self.command_with_data(
+    command::BORDER_WAVEFORM_CONTROL,
+    &[0x05],
+)
+.await?;        
         self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
             .await?;
-        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
-            .await?;
+        // self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
+        //     .await?;
+// self.command_with_data(command::TEMP_CONTROL, &[0x80])
+//     .await?;
+
+// self.load_temperature_profile().await?;
+
         self.use_full_frame().await?;
         self.wait_until_idle().await;
         Ok(())
@@ -127,6 +137,44 @@ where
         self.reset.set_high().unwrap();
         self.delay.delay_ms(Self::RESET_DELAY_MS).await;
     }
+        
+    async fn load_temperature_profile(&mut self) -> Result<()> {
+        self.command_with_data(command::TEMP_CONTROL, &[0x80])
+            .await?;
+
+        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[0xB1])
+            .await?;
+        self.command(command::MASTER_ACTIVATE).await?;
+        self.wait_until_idle().await;
+
+        self.command_with_data(0x1A, &[0x64, 0x00])
+            .await?;
+
+        self.command_with_data(command::UPDATE_DISPLAY_CTRL2, &[0x91])
+            .await?;
+        self.command(command::MASTER_ACTIVATE).await?;
+        self.wait_until_idle().await;
+
+        Ok(())
+    }
+
+// pub async fn establish_partial_baseline(
+//     &mut self,
+//     buffer: &[u8],
+// ) -> Result<()> {
+//     self.init().await?;
+
+//     // RAM1
+//     self.write_bw_buffer(buffer).await?;
+
+//     // RAM2
+//     self.write_red_buffer(buffer).await?;
+
+//     // vendor full update
+//     self.full_refresh().await?;
+
+//     Ok(())
+// }
 
     /// Write to the B/W buffer.
     pub async fn write_bw_buffer(&mut self, buffer: &[u8]) -> Result<()> {
@@ -367,6 +415,7 @@ where
     pub async fn fast_refresh(&mut self) -> Result<()> {
         if !self.initial_full_refresh_done {
             self.full_refresh().await?;
+            // self.rebuild_partial_baseline().await?;
         }
 
         self.using_partial_mode = true;
@@ -394,26 +443,47 @@ where
 
     /// Update the screen with the provided full frame buffer using a fast refresh.
     ///
-    /// Sequence: hw_reset (wakes from deep sleep, registers/RAM preserved in mode 1) >
-    /// wait busy > set border waveform > write DTM1 > trigger 0xFF > update DTM2 > deep sleep.
+    /// Matches the Arduino vendor demo (EPD_Dis_Part): hw_reset to stabilise the gate
+    /// driver → restore registers that reset at POR → write DTM1 → 0xFC differential
+    /// trigger → write DTM2 to keep the reference current for the next refresh.
     ///
-    /// DTM2 is updated after each refresh so it always reflects the currently displayed frame.
-    /// With 0xFF differential mode the controller only drives pixels that differ between DTM1
-    /// and DTM2 , if DTM2 drifts behind, unchanged pixels accumulate residual charge > ghosting.
+    /// No deep sleep between fast updates. The Arduino never sleeps between partial
+    /// update frames — keeping the display awake avoids any panel-side RAM corruption
+    /// that could occur during deep sleep + hw_reset wakeup on the new batch of panels.
+    /// DTM2 persists in the controller's SRAM across the hw_reset (active-state reset
+    /// does not clear RAM), so each 0xFC refresh correctly diffs against the previous frame.
     pub async fn fast_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
+        // hw_reset every frame (matches Arduino EPD_Dis_Part) — prevents background
+        // colour changes and resets the gate driver to a known state.
         self.hw_reset().await;
         self.wait_until_idle().await;
+
+        // 0x3C POR is not 0x80; must be set explicitly for partial mode (border floating).
         self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80])
             .await?;
+        // 0x21 POR = [0x00, 0x00]. Byte-2 = 0x80 is the source bypass needed for our
+        // PCB (FPC-7519 colstart=8): without it sources shift 8 px relative to the 0xF7
+        // baseline, causing a fixed misalignment on every fast refresh.
+        self.command_with_data(command::DISPLAY_UPDATE_CONTROL, &[0x00, 0x80])
+            .await?;
+        // Enable internal temperature sensor for OTP waveform compensation.
+        self.command_with_data(command::TEMP_CONTROL, &[flag::INTERNAL_TEMP_SENSOR])
+            .await?;
+
+        // Write new frame to DTM1, trigger differential refresh, then update DTM2 so
+        // the reference stays current for the next cycle.
         self.write_bw_buffer(buffer).await?;
         self.fast_refresh().await?;
         self.write_red_buffer(buffer).await?;
-        self.sleep().await?;
+
+        // No deep sleep — keeps DTM2 alive in SRAM between updates (matches Arduino).
         Ok(())
     }
 
-    /// Update the screen with the provided partial frame buffer using AramVartanyan's approach.
-    /// Only writes to DTM1, leaving DTM2 unchanged as reference for differential updates.
+    /// Update a partial region of the screen with a fast refresh.
+    ///
+    /// Writes the region to DTM1, triggers a 0xFC differential refresh, then writes the
+    /// same region to DTM2 to keep the reference current for subsequent refreshes.
     ///
     /// `x`, and `width` must be multiples of 8.
     pub async fn fast_partial_update_from_buffer(
@@ -424,13 +494,24 @@ where
         width: u32,
         height: u32,
     ) -> Result<()> {
-        // AramVartanyan strategy: write ONLY to RAM1 (0x24) for partial update
+        self.hw_reset().await;
+        self.wait_until_idle().await;
+
+        self.command_with_data(command::BORDER_WAVEFORM_CONTROL, &[0x80])
+            .await?;
+
         self.write_partial_bw_buffer(buffer, x, y, width, height)
             .await?;
+
         self.fast_refresh().await?;
+
+        // Keep DTM2 in sync for this region so the next differential refresh
+        // has an accurate reference and doesn't re-drive already-settled pixels.
+        self.write_partial_red_buffer(buffer, x, y, width, height)
+            .await?;
+
         Ok(())
     }
-
     /// Update the screen with the provided [`Display`] using a full refresh.
     #[cfg_attr(docsrs, doc(cfg(feature = "graphics")))]
     #[cfg(feature = "graphics")]

@@ -11,7 +11,7 @@ mod flags {
     pub const BORDER_WAVEFORM_LUT2: u8 = 0b10;
     pub const BORDER_WAVEFORM_LUT3: u8 = 0b11;
     pub const DISPLAY_MODE_1: u8 = 0xF7;
-    pub const DISPLAY_MODE_2: u8 = 0xFF;
+    pub const DISPLAY_MODE_2: u8 = 0xFC;
     /// Undocumented value for the "Display Update Control 2 (`0x22`) command.
     /// Together with the [`crate::lut::LUT_PARTIAL_UPDATE`] lut this yields much better looking
     /// quick refreshes.
