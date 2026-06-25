@@ -66,9 +66,7 @@ pub type DisplayBlackWhite<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZ
 pub type DisplayTriColor<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize> =
     Display<WIDTH, HEIGHT, BUFFER_SIZE, TriColor>;
 
-impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize>
-    Display<WIDTH, HEIGHT, BUFFER_SIZE, Color>
-{
+impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize> Display<WIDTH, HEIGHT, BUFFER_SIZE, Color> {
     /// Creates a new display buffer filled with the default color.
     pub fn new() -> Self {
         Self {
@@ -97,9 +95,7 @@ impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize> Default
     }
 }
 
-impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize>
-    Display<WIDTH, HEIGHT, BUFFER_SIZE, TriColor>
-{
+impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize> Display<WIDTH, HEIGHT, BUFFER_SIZE, TriColor> {
     /// Creates a new display buffer filled with the default color.
     pub fn new() -> Self {
         let background_color = TriColor::default();
@@ -108,11 +104,7 @@ impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize>
         buffer[..(BUFFER_SIZE / 2)].fill(background_color.byte_value().0);
         buffer[(BUFFER_SIZE / 2)..].fill(background_color.byte_value().1);
 
-        Self {
-            buffer,
-            rotation: Default::default(),
-            _color: core::marker::PhantomData,
-        }
+        Self { buffer, rotation: Default::default(), _color: core::marker::PhantomData }
     }
 
     /// Get the internal B/W buffer.
@@ -140,8 +132,7 @@ impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize> Default
     }
 }
 
-impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize, C>
-    Display<WIDTH, HEIGHT, BUFFER_SIZE, C>
+impl<const WIDTH: u32, const HEIGHT: u32, const BUFFER_SIZE: usize, C> Display<WIDTH, HEIGHT, BUFFER_SIZE, C>
 where
     C: ColorType + PixelColor,
 {
@@ -164,8 +155,7 @@ where
             return;
         }
 
-        let (index, bit) =
-            pixel_position_in_buffer(x as u32, y as u32, WIDTH, HEIGHT, self.rotation);
+        let (index, bit) = pixel_position_in_buffer(x as u32, y as u32, WIDTH, HEIGHT, self.rotation);
         let index = index as usize;
         let (bw_bit, red_bit) = color.bit_value();
 
@@ -273,13 +263,7 @@ fn outside_display(p: Point, width: u32, height: u32, rotation: DisplayRotation)
 /// Returns the position of the pixel in the (single color) buffer.
 ///
 /// Return type is (byte index, bit)
-fn pixel_position_in_buffer(
-    x: u32,
-    y: u32,
-    width: u32,
-    height: u32,
-    rotation: DisplayRotation,
-) -> (u32, u8) {
+fn pixel_position_in_buffer(x: u32, y: u32, width: u32, height: u32, rotation: DisplayRotation) -> (u32, u8) {
     let (nx, ny) = find_rotation(x, y, width, height, rotation);
     (nx / 8 + bytes_per_line(width) * ny, 0x80 >> (nx % 8))
 }
@@ -306,14 +290,8 @@ mod tests {
         let display = Display::<8, 1, 2, TriColor>::new();
         assert_eq!(display.buffer.len(), 2);
 
-        assert_eq!(
-            display.buffer[0], 0b1111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b0000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b1111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b0000_0000, "Red buffer has incorrect value");
     }
 
     #[test]
@@ -322,14 +300,8 @@ mod tests {
 
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Black));
 
-        assert_eq!(
-            display.buffer[0], 0b0111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b0000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b0111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b0000_0000, "Red buffer has incorrect value");
     }
 
     #[test]
@@ -338,14 +310,8 @@ mod tests {
 
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Red));
 
-        assert_eq!(
-            display.buffer[0], 0b1111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b1000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b1111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b1000_0000, "Red buffer has incorrect value");
     }
 
     #[test]
@@ -355,14 +321,8 @@ mod tests {
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Red));
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Black));
 
-        assert_eq!(
-            display.buffer[0], 0b0111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b0000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b0111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b0000_0000, "Red buffer has incorrect value");
     }
 
     #[test]
@@ -373,14 +333,8 @@ mod tests {
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Black));
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Red));
 
-        assert_eq!(
-            display.buffer[0], 0b0111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b1000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b0111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b1000_0000, "Red buffer has incorrect value");
     }
 
     #[test]
@@ -391,23 +345,11 @@ mod tests {
         display.set_pixel(Pixel(Point::new(0, 0), TriColor::Red));
 
         display.clear(TriColor::White);
-        assert_eq!(
-            display.buffer[0], 0b1111_1111,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b0000_0000,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b1111_1111, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b0000_0000, "Red buffer has incorrect value");
 
         display.clear(TriColor::Red);
-        assert_eq!(
-            display.buffer[0], 0b0000_0000,
-            "B/W buffer has incorrect value"
-        );
-        assert_eq!(
-            display.buffer[1], 0b1111_1111,
-            "Red buffer has incorrect value"
-        );
+        assert_eq!(display.buffer[0], 0b0000_0000, "B/W buffer has incorrect value");
+        assert_eq!(display.buffer[1], 0b1111_1111, "Red buffer has incorrect value");
     }
 }
