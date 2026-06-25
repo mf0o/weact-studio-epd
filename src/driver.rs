@@ -428,17 +428,31 @@ where
         Ok(())
     }
 
-    /// Update the screen with the provided full frame buffer using a full refresh.
+    /// Update the screen with the provided full frame buffer using a full (0xF7) refresh.
     ///
-    /// Calls `init()` first to ensure the display is awake and in a known state , this
-    /// handles the case where a previous `fast_update_from_buffer` left it in deep sleep.
-    /// Writes the same data to both DTM1 (0x24) and DTM2 (0x26) to establish a clean
-    /// reference state for subsequent partial updates.
+    /// Sleeps the display first, THEN calls init() (which does hw_reset). This is
+    /// critical: the SSD1680 spec only guarantees DTM2 RAM retention when hw_reset
+    /// is issued from DEEP SLEEP MODE 1. On the new DEPG0290BBS800F6HP-M7 batch,
+    /// hw_reset from ACTIVE state clears DTM2. If DTM2 is lost, the 0xF7 OTP LUT
+    /// sees all "no-change" transitions (DTM1 == DTM2 == blank) and applies only weak
+    /// waveforms, leaving residual charge that fades into an inverted ghost image
+    /// seconds after power-off.
+    ///
+    /// Only DTM1 is written before the 0xF7 refresh. DTM2 is left as the actual
+    /// previous frame so the LUT sees real DTM2→DTM1 transitions and applies strong
+    /// drive waveforms to every changed pixel. DTM2 is updated AFTER the refresh to
+    /// serve as the correct basemap reference for subsequent fast_update calls.
     pub async fn full_update_from_buffer(&mut self, buffer: &[u8]) -> Result<()> {
+        // Sleep first so the subsequent hw_reset in init() is issued from SLEEP MODE 1.
+        // A 10 ms pause gives the controller time to fully latch into sleep before RST.
+        self.sleep().await?;
+        self.delay.delay_ms(10).await;
         self.init().await?;
         self.write_bw_buffer(buffer).await?;
-        self.write_red_buffer(buffer).await?;
+        // DTM2 intentionally NOT written here — it holds the real previous screen state.
         self.full_refresh().await?;
+        // Sync DTM2 to the new on-screen content for the next partial cycle.
+        self.write_red_buffer(buffer).await?;
         Ok(())
     }
 
